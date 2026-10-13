@@ -72,8 +72,8 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip cross-origin requests
-  if (url.origin !== location.origin) {
+  // Skip on localhost or cross-origin requests
+  if (url.origin !== location.origin || url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
     return;
   }
 

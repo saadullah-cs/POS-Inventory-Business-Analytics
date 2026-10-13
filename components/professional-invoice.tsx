@@ -84,6 +84,23 @@ export default function ProfessionalInvoice() {
     }
   }, [])
 
+  const handleThermalPrintRef = useRef<() => void>()
+
+  // Keyboard shortcut listener for F9 POS Thermal Print
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F9") {
+        e.preventDefault()
+        if (handleThermalPrintRef.current) {
+          handleThermalPrintRef.current()
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
   const [invoiceNumber, setInvoiceNumber] = useState("INV-2025-001")
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0])
   const [dueDate, setDueDate] = useState("")
@@ -106,21 +123,21 @@ export default function ProfessionalInvoice() {
   })
 
   const [tableColumns, setTableColumns] = useState<TableColumn[]>([
-    { id: "1", name: "Item", key: "index", type: "text", width: "60px", required: true, visible: true },
-    { id: "2", name: "Description", key: "description", type: "text", width: "200px", required: true, visible: true },
-    { id: "3", name: "Qty", key: "quantity", type: "number", width: "80px", required: true, visible: true },
-    { id: "4", name: "Unit Price", key: "unitPrice", type: "number", width: "100px", required: true, visible: true },
-    { id: "5", name: "Tax %", key: "taxRate", type: "percentage", width: "80px", required: false, visible: true },
+    { id: "1", name: "Item", key: "index", type: "text", width: "6%", required: true, visible: true },
+    { id: "2", name: "Description", key: "description", type: "text", width: "35%", required: true, visible: true },
+    { id: "3", name: "Qty", key: "quantity", type: "number", width: "8%", required: true, visible: true },
+    { id: "4", name: "Unit Price", key: "unitPrice", type: "number", width: "13%", required: true, visible: true },
+    { id: "5", name: "Tax %", key: "taxRate", type: "percentage", width: "9%", required: false, visible: true },
     {
       id: "6",
       name: "Discount %",
       key: "discount",
       type: "percentage",
-      width: "100px",
+      width: "11%",
       required: false,
       visible: true,
     },
-    { id: "7", name: "Total", key: "total", type: "number", width: "100px", required: true, visible: true },
+    { id: "7", name: "Total", key: "total", type: "number", width: "11%", required: true, visible: true },
   ])
 
   const [items, setItems] = useState<InvoiceItem[]>([
@@ -132,6 +149,7 @@ export default function ProfessionalInvoice() {
     { id: "6", description: "", quantity: 1, unitPrice: 0, taxRate: 0, discount: 0 },
   ])
 
+  const [activeDropdownRowId, setActiveDropdownRowId] = useState<string | null>(null)
   const [cloudAccounts, setCloudAccounts] = useState<any[]>([])
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false)
   const [offlineMode, setOfflineMode] = useState(false)
@@ -314,8 +332,22 @@ export default function ProfessionalInvoice() {
     setItems(items.filter((item) => item.id !== id))
   }
 
-  const updateItem = (id: string, field: string, value: string | number) => {
-    setItems(items.map((item) => (item.id === id ? { ...item, [field]: value } : item)))
+  const updateItem = (
+    id: string,
+    fieldOrUpdates: string | Record<string, any>,
+    value?: string | number
+  ) => {
+    setItems((prevItems) =>
+      prevItems.map((item) => {
+        if (item.id === id) {
+          if (typeof fieldOrUpdates === "object" && fieldOrUpdates !== null) {
+            return { ...item, ...fieldOrUpdates }
+          }
+          return { ...item, [fieldOrUpdates]: value }
+        }
+        return item
+      })
+    )
   }
 
   const calculateItemTotal = (item: InvoiceItem) => {
@@ -349,6 +381,29 @@ export default function ProfessionalInvoice() {
     return items.reduce((sum, item) => sum + calculateItemTotal(item), 0)
   }
 
+
+  const handleThermalPrint = async () => {
+    try {
+      persistCurrentInvoice()
+    } catch (e) {
+      console.warn("Could not save invoice before thermal printing:", e)
+    }
+    document.documentElement.classList.add("thermal-mode")
+    document.body.classList.add("thermal-mode")
+
+    const cleanup = () => {
+      document.documentElement.classList.remove("thermal-mode")
+      document.body.classList.remove("thermal-mode")
+      window.removeEventListener("afterprint", cleanup)
+    }
+    window.addEventListener("afterprint", cleanup)
+
+    setTimeout(() => {
+      window.print()
+      setTimeout(cleanup, 1000)
+    }, 100)
+  }
+  handleThermalPrintRef.current = handleThermalPrint
 
   const handlePrint = async () => {
     // Save invoice before printing
@@ -577,11 +632,11 @@ export default function ProfessionalInvoice() {
 
   const renderTableCell = (item: InvoiceItem, column: TableColumn, index: number) => {
     if (column.key === "index") {
-      return <span className="font-medium">{index + 1}</span>
+      return <span className="font-medium text-center block w-full">{index + 1}</span>
     }
 
     if (column.key === "total") {
-      return <span className="font-semibold">Rs {Math.round(calculateItemTotal(item))}</span>
+      return <span className="font-semibold text-center block w-full whitespace-nowrap">Rs {Math.round(calculateItemTotal(item))}</span>
     }
 
     const value = item[column.key] || (column.type === "number" || column.type === "percentage" ? 0 : "")
@@ -594,8 +649,7 @@ export default function ProfessionalInvoice() {
             step="1"
             value={value}
             onChange={(e) => updateItem(item.id, column.key, Number.parseFloat(e.target.value) || 0)}
-            className="border-0 bg-transparent p-0 text-right focus:ring-0 print:hidden text-sm"
-            style={{ width: column.width }}
+            className="border-0 bg-transparent p-0 text-center focus:ring-0 print:hidden text-xs sm:text-sm w-full min-w-0 h-7"
           />
           <span className="hidden print:inline">
             {column.key === "unitPrice" ? `Rs ${Math.round(Number(value))}` : value}
@@ -612,8 +666,7 @@ export default function ProfessionalInvoice() {
             step="1"
             value={value}
             onChange={(e) => updateItem(item.id, column.key, Number.parseFloat(e.target.value) || 0)}
-            className="border-0 bg-transparent p-0 text-center focus:ring-0 print:hidden text-sm"
-            style={{ width: column.width }}
+            className="border-0 bg-transparent p-0 text-center focus:ring-0 print:hidden text-xs sm:text-sm w-full min-w-0 h-7"
           />
           <span className="hidden print:inline">{value}%</span>
         </>
@@ -622,35 +675,87 @@ export default function ProfessionalInvoice() {
 
     if (column.key === "description") {
       const wholesaleProducts = ProductStorage.getProducts()
-      const matchedProd = wholesaleProducts.find(p => p.name.toLowerCase() === (value || "").toString().toLowerCase() || p.sku.toLowerCase() === (value || "").toString().toLowerCase())
+      const searchStr = (item.description || value || "").toString().toLowerCase().trim()
+      const matchedProd = wholesaleProducts.find(
+        (p) => p.name.toLowerCase() === searchStr || p.sku.toLowerCase() === searchStr
+      )
+      const filteredOptions = searchStr
+        ? wholesaleProducts.filter(
+            (p) =>
+              p.name.toLowerCase().includes(searchStr) ||
+              p.sku.toLowerCase().includes(searchStr)
+          )
+        : wholesaleProducts
+
+      const isDropdownOpen = activeDropdownRowId === item.id && filteredOptions.length > 0
 
       return (
-        <div className="relative group">
+        <div className="relative group w-full min-w-0">
           <Input
-            value={value}
-            list="wholesale-products-list"
+            value={item.description || value || ""}
+            autoComplete="off"
+            spellCheck={false}
+            autoCorrect="off"
+            data-lpignore="true"
+            onFocus={() => setActiveDropdownRowId(item.id)}
+            onBlur={() => {
+              setTimeout(() => {
+                setActiveDropdownRowId((current) => (current === item.id ? null : current))
+              }, 200)
+            }}
             onChange={(e) => {
               const val = e.target.value
               updateItem(item.id, "description", val)
-              const selected = wholesaleProducts.find(p => p.name.toLowerCase() === val.toLowerCase() || p.sku.toLowerCase() === val.toLowerCase())
+              const selected = wholesaleProducts.find(
+                (p) => p.name.toLowerCase() === val.toLowerCase() || p.sku.toLowerCase() === val.toLowerCase()
+              )
               if (selected) {
-                updateItem(item.id, "unitPrice", selected.unitPrice)
+                updateItem(item.id, {
+                  description: selected.name,
+                  unitPrice: selected.unitPrice,
+                  sku: selected.sku,
+                })
               }
             }}
-            className="border-0 bg-transparent p-0 focus:ring-0 print:hidden text-sm"
+            className="border-0 bg-transparent p-0 focus:ring-0 print:hidden text-xs sm:text-sm w-full min-w-0 h-7"
             placeholder="Search/Enter product or SKU..."
-            style={{ width: column.width }}
           />
-          <datalist id="wholesale-products-list">
-            {wholesaleProducts.map(p => (
-              <option key={p.id} value={p.name}>
-                {p.sku} | Rs {p.unitPrice} | Stock: {p.stockQuantity} {p.unit}s
-              </option>
-            ))}
-          </datalist>
+
+          {/* Premium Dark Dropdown */}
+          {isDropdownOpen && (
+            <div className="absolute top-full left-0 w-full min-w-[280px] sm:min-w-[320px] bg-slate-900 dark:bg-zinc-950 border border-slate-700 dark:border-zinc-800 text-white rounded-lg shadow-2xl z-50 max-h-56 overflow-y-auto mt-1 print:hidden divide-y divide-slate-800 dark:divide-zinc-800/60">
+              {filteredOptions.slice(0, 10).map((p) => (
+                <div
+                  key={p.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                  }}
+                  onClick={() => {
+                    updateItem(item.id, {
+                      description: p.name,
+                      unitPrice: p.unitPrice,
+                      sku: p.sku,
+                    })
+                    setActiveDropdownRowId(null)
+                  }}
+                  className="px-3 py-2 text-xs hover:bg-slate-800 dark:hover:bg-zinc-800/80 cursor-pointer flex justify-between items-center transition-colors"
+                >
+                  <div className="flex flex-col text-left">
+                    <span className="font-semibold text-white">{p.name}</span>
+                    <span className="text-[10px] text-slate-400">SKU: {p.sku}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-emerald-400">Rs {p.unitPrice}</span>
+                    <div className="text-[10px] text-slate-400">{p.stockQuantity} in stock</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {matchedProd && (
-            <div className="text-[10px] text-muted-foreground print:hidden flex items-center gap-1 mt-0.5 font-sans">
-              <span className={`font-semibold ${matchedProd.stockQuantity === 0 ? 'text-red-500' : matchedProd.stockQuantity <= matchedProd.minStockAlert ? 'text-amber-500' : 'text-emerald-600'}`}>
+            <div className="text-[10px] text-muted-foreground print:hidden flex items-center gap-1 mt-0.5 font-sans truncate">
+              <span className={`font-semibold ${matchedProd.stockQuantity === 0 ? 'text-red-500' : matchedProd.stockQuantity <= matchedProd.minStockAlert ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
                 Stock: {matchedProd.stockQuantity} {matchedProd.unit}s
               </span>
               <span>• SKU: {matchedProd.sku}</span>
@@ -666,9 +771,8 @@ export default function ProfessionalInvoice() {
         <Input
           value={value}
           onChange={(e) => updateItem(item.id, column.key, e.target.value)}
-          className="border-0 bg-transparent p-0 focus:ring-0 print:hidden text-sm"
+          className="border-0 bg-transparent p-0 focus:ring-0 print:hidden text-xs sm:text-sm w-full min-w-0 h-7"
           placeholder={`Enter ${column.name.toLowerCase()}`}
-          style={{ width: column.width }}
         />
         <span className="hidden print:inline">{value}</span>
       </>
@@ -887,6 +991,7 @@ export default function ProfessionalInvoice() {
             </div>
 
             <div className="control-buttons flex items-center gap-2">
+              <Button onClick={handleThermalPrint} size="sm" className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-2 mr-2"><Printer className="w-4 h-4" /> POS Thermal (F9)</Button>
               <Button
                 variant="outline"
                 size="icon"
@@ -929,7 +1034,7 @@ export default function ProfessionalInvoice() {
                 size="sm" 
                 className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
               >
-                📱 Install App
+                Install App
               </PWAInstallButton>
             </div>
             <div className="grid grid-cols-1 gap-2">
@@ -943,19 +1048,30 @@ export default function ProfessionalInvoice() {
                 printRef={printRef}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <Button
-                onClick={handlePrint} size="sm" className="flex items-center gap-2">
+                onClick={handleThermalPrint}
+                size="sm"
+                className="bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center gap-1.5"
+              >
+                <Printer className="w-4 h-4" />
+                POS
+              </Button>
+              <Button
+                onClick={handlePrint}
+                size="sm"
+                className="flex items-center justify-center gap-1.5"
+              >
                 <Printer className="w-4 h-4" />
                 Print
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="flex items-center gap-2 bg-transparent text-green-600 hover:text-green-700"
+                className="flex items-center justify-center gap-1.5 bg-transparent text-green-600 hover:text-green-700"
               >
                 <FileText className="w-4 h-4" />
-                {t('actions.downloadWord')}
+                Word
               </Button>
             </div>
             <Button
@@ -1169,8 +1285,8 @@ export default function ProfessionalInvoice() {
               <TableColumnManager columns={tableColumns} onColumnsChange={setTableColumns} />
             </div>
 
-            <div className="table-container overflow-x-auto">
-              <table className="w-full border-collapse text-xs sm:text-sm min-w-full">
+            <div className="table-container w-full overflow-x-auto">
+              <table className="w-full table-fixed border-collapse text-xs sm:text-sm">
                 <thead>
                   <tr className="bg-blue-900 text-white">
                     {tableColumns
@@ -1178,15 +1294,28 @@ export default function ProfessionalInvoice() {
                       .map((column) => (
                         <th
                           key={column.id}
-                          className={`border border-blue-800 p-1 sm:p-2 text-left font-semibold ${
-                            column.key === "discount" || column.key === "taxRate" ? "mobile-hide sm:table-cell" : ""
+                          className={`border border-blue-800 p-1 font-semibold text-center ${
+                            column.key === "index"
+                              ? "w-[5%]"
+                              : column.key === "description"
+                                ? "w-[35%] text-left px-2"
+                                : column.key === "quantity"
+                                  ? "w-[8%]"
+                                  : column.key === "unitPrice"
+                                    ? "w-[14%]"
+                                    : column.key === "taxRate"
+                                      ? "w-[9%]"
+                                      : column.key === "discount"
+                                        ? "w-[11%]"
+                                        : column.key === "total"
+                                          ? "w-[11%]"
+                                          : "w-[10%]"
                           }`}
-                          style={{ width: column.width }}
                         >
                           {column.name}
                         </th>
                       ))}
-                    <th className="border border-blue-800 p-1 sm:p-2 text-center font-semibold print:hidden">Action</th>
+                    <th className="w-[7%] border border-blue-800 p-1 text-center font-semibold print:hidden">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1197,28 +1326,39 @@ export default function ProfessionalInvoice() {
                         .map((column) => (
                           <td
                             key={column.id}
-                            className={`border border-border p-1 sm:p-2 ${
-                              column.type === "number"
-                                ? "text-right"
-                                : column.key === "index"
-                                  ? "text-center"
-                                  : "text-left"
-                            } ${
-                              column.key === "discount" || column.key === "taxRate" ? "mobile-hide sm:table-cell" : ""
+                            className={`border border-border p-1 text-center ${
+                              column.key === "index"
+                                ? "w-[5%]"
+                                : column.key === "description"
+                                  ? "w-[35%] text-left px-2"
+                                  : column.key === "quantity"
+                                    ? "w-[8%]"
+                                    : column.key === "unitPrice"
+                                      ? "w-[14%]"
+                                      : column.key === "taxRate"
+                                        ? "w-[9%]"
+                                        : column.key === "discount"
+                                          ? "w-[11%]"
+                                          : column.key === "total"
+                                            ? "w-[11%]"
+                                            : "w-[10%]"
                             }`}
                           >
                             {renderTableCell(item, column, index)}
                           </td>
                         ))}
-                      <td className="border border-border p-1 sm:p-2 text-center print:hidden">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeItem(item.id)}
-                          className="text-red-600 hover:text-red-800 p-1"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
+                      <td className="w-[7%] border border-border p-1 text-center print:hidden">
+                        <div className="flex justify-center items-center h-full w-full">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeItem(item.id)}
+                            className="text-red-600 hover:text-red-800 p-1 h-7 w-7"
+                            title="Delete Item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1320,8 +1460,176 @@ export default function ProfessionalInvoice() {
         </div>
       </div>
 
+      {/* Dedicated 80mm POS Thermal Receipt - Isolated container for thermal printer */}
+      <div id="pos-thermal-receipt" className="pos-thermal-receipt hidden print:hidden">
+        <div className="receipt-content w-[76mm] max-w-[80mm] mx-auto p-1 text-black bg-white font-mono text-[11px] leading-tight select-none">
+          {/* Centered Pharmacy Header */}
+          <div className="text-center mb-1">
+            <h1 className="text-sm font-bold uppercase tracking-wider">{companyInfo.name || "BIOCURE HEALTH CARE"}</h1>
+            {companyInfo.owner && <p className="text-[10px]">Prop: {companyInfo.owner}</p>}
+            {companyInfo.address && <p className="text-[10px]">{companyInfo.address}</p>}
+            {companyInfo.phone1 && (
+              <p className="text-[10px]">
+                Tel: {companyInfo.phone1}
+                {companyInfo.phone2 ? ` / ${companyInfo.phone2}` : ""}
+              </p>
+            )}
+            {companyInfo.email && <p className="text-[9px]">{companyInfo.email}</p>}
+          </div>
+
+          {/* Receipt Divider & Title */}
+          <div className="border-t border-b border-dashed border-black py-0.5 my-1 text-center font-bold text-xs uppercase tracking-wide">
+            RETAIL CASH MEMO
+          </div>
+
+          {/* Metadata */}
+          <div className="text-[10px] space-y-0.5 my-1">
+            <div className="flex justify-between">
+              <span>Bill #: <strong>{invoiceNumber}</strong></span>
+              <span>Date: {invoiceDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Time: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              <span>Counter: 01</span>
+            </div>
+            {clientInfo.name && (
+              <div className="flex justify-between border-t border-dotted border-gray-400 pt-0.5 mt-0.5">
+                <span>Patient / Customer:</span>
+                <span className="font-semibold text-right">{clientInfo.name}</span>
+              </div>
+            )}
+            {clientInfo.phone && (
+              <div className="flex justify-between">
+                <span>Phone:</span>
+                <span>{clientInfo.phone}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Table Header: Item, Qty, Total */}
+          <div className="border-t border-b border-dashed border-black py-0.5 my-1">
+            <div className="flex justify-between font-bold text-[10px]">
+              <span className="w-[52%] text-left">ITEM</span>
+              <span className="w-[18%] text-center">QTY</span>
+              <span className="w-[30%] text-right">TOTAL</span>
+            </div>
+          </div>
+
+          {/* Compact Items List */}
+          <div className="space-y-1 my-1">
+            {items
+              .filter((item) => (item.description && item.description.trim() !== "") || item.unitPrice > 0)
+              .map((item, idx) => {
+                const itemTotal = calculateItemTotal(item)
+                return (
+                  <div key={item.id || idx} className="text-[10px]">
+                    <div className="font-semibold break-words leading-tight">
+                      {idx + 1}. {item.description || "Medicine / Item"}
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-800">
+                      <span className="w-[52%] text-left pl-2">
+                        {item.quantity} x Rs {Number(item.unitPrice || 0).toFixed(2)}
+                        {item.discount > 0 ? ` (-${item.discount}%)` : ""}
+                      </span>
+                      <span className="w-[18%] text-center font-medium">{item.quantity}</span>
+                      <span className="w-[30%] text-right font-semibold">Rs {itemTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+                )
+              })}
+          </div>
+
+          {/* Dashed Divider */}
+          <div className="border-t border-dashed border-black my-1" />
+
+          {/* Totals Summary */}
+          <div className="text-[10px] space-y-0.5 my-1">
+            <div className="flex justify-between">
+              <span>
+                Total Items: {items.filter((item) => (item.description && item.description.trim() !== "") || item.unitPrice > 0).length}
+              </span>
+              <span>
+                Total Qty: {items.filter((item) => (item.description && item.description.trim() !== "") || item.unitPrice > 0).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)}
+              </span>
+            </div>
+
+            {calculateTotalDiscount() > 0 && (
+              <>
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>Rs {calculateSubtotal().toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Discount:</span>
+                  <span>-Rs {calculateTotalDiscount().toFixed(2)}</span>
+                </div>
+              </>
+            )}
+
+            {calculateTotalTax() > 0 && (
+              <div className="flex justify-between">
+                <span>Tax:</span>
+                <span>Rs {calculateTotalTax().toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Grand Total */}
+          <div className="border-t-2 border-b-2 border-dashed border-black py-1 my-1">
+            <div className="flex justify-between items-center text-xs font-bold">
+              <span className="tracking-wide">GRAND TOTAL:</span>
+              <span className="text-sm">Rs {calculateGrandTotal().toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* Pharmacy POS Footer */}
+          <div className="text-center text-[9px] space-y-0.5 mt-2 pt-1 border-t border-dashed border-gray-400">
+            <p className="font-bold">*** THANK YOU FOR YOUR VISIT ***</p>
+            <p>Wish you a speedy recovery!</p>
+            <p>Medicines once sold cannot be returned without original receipt within 3 days.</p>
+            <p>Cold chain & cut blister medicines are non-refundable.</p>
+            <p className="text-[8px] text-gray-600 pt-0.5">Software Powered by Biocure Systems</p>
+          </div>
+        </div>
+      </div>
+
       {/* Enhanced Print Styles for PDF Generation */}
       <style jsx global>{`
+        /* Thermal Receipt isolation rules */
+        .pos-thermal-receipt {
+          display: none !important;
+        }
+
+        body.thermal-mode, html.thermal-mode {
+          width: 80mm !important;
+          max-width: 80mm !important;
+          min-width: 80mm !important;
+          height: auto !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+          background: white !important;
+          color: black !important;
+        }
+
+        body.thermal-mode .invoice-document,
+        body.thermal-mode .floating-actions,
+        body.thermal-mode .control-buttons,
+        body.thermal-mode .no-print-thermal,
+        body.thermal-mode header,
+        body.thermal-mode nav {
+          display: none !important;
+        }
+
+        body.thermal-mode .pos-thermal-receipt {
+          display: block !important;
+          width: 80mm !important;
+          max-width: 80mm !important;
+          margin: 0 auto !important;
+          padding: 2mm 3mm !important;
+          box-sizing: border-box !important;
+          background: white !important;
+          color: black !important;
+        }
         /* Invoice watermark (screen) */
         .invoice-document {
           position: relative;
@@ -1405,6 +1713,24 @@ export default function ProfessionalInvoice() {
             margin: 0;
             padding: 0;
             background: white !important;
+          }
+          
+          body.thermal-mode, html.thermal-mode {
+            width: 80mm !important;
+            max-width: 80mm !important;
+            min-width: 80mm !important;
+            height: auto !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          body.thermal-mode .invoice-document {
+            display: none !important;
+          }
+
+          body.thermal-mode .pos-thermal-receipt {
+            display: block !important;
           }
           
           .invoice-document { 

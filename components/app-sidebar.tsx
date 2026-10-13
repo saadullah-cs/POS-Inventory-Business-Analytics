@@ -80,7 +80,8 @@ export default function AppSidebar({ isOpen, onClose, onToggle, isCollapsed = fa
           // Desktop: sticky in layout with dynamic width
           "lg:sticky lg:top-0 lg:z-30 lg:h-screen lg:translate-x-0",
           // Width based on collapsed state OR hover state (desktop only)
-          (isCollapsed && !isHovered) ? "lg:w-20" : "w-72"
+          (isCollapsed && !isHovered) ? "lg:w-20" : "w-72",
+          "overscroll-contain"
         )}
         onMouseEnter={() => {
           if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
@@ -160,7 +161,7 @@ export default function AppSidebar({ isOpen, onClose, onToggle, isCollapsed = fa
           </div>
 
           {/* Navigation Links */}
-          <ScrollArea className="flex-1 py-4">
+          <ScrollArea className="flex-1 py-4 overflow-y-auto overscroll-contain">
             <nav className={cn("space-y-1", (isCollapsed && !isHovered) ? "px-2" : "px-3")}>
               {navigation.map((item) => {
                 const isActive = pathname === item.href

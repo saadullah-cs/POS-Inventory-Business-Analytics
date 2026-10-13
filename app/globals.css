@@ -193,6 +193,46 @@
     size: A4;
     margin: 0.3in;
   }
+
+  /* POS Thermal Receipt Mode */
+  .pos-thermal-receipt {
+    display: none !important;
+  }
+
+  body.thermal-mode {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    min-width: 80mm !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    font-size: 11px !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Hide standard A4 invoice and screen UI when thermal print mode is active */
+  body.thermal-mode .invoice-document,
+  body.thermal-mode .floating-actions,
+  body.thermal-mode .control-buttons,
+  body.thermal-mode .no-print-thermal,
+  body.thermal-mode header,
+  body.thermal-mode nav {
+    display: none !important;
+  }
+
+  /* Display ONLY the dedicated 80mm receipt container */
+  body.thermal-mode .pos-thermal-receipt {
+    display: block !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 2mm 3mm !important;
+    box-sizing: border-box !important;
+    background: white !important;
+    color: black !important;
+    font-family: 'Courier New', Courier, monospace, -apple-system, BlinkMacSystemFont, sans-serif !important;
+  }
 }
 
 /* Enhanced styling for professional look */
@@ -228,6 +268,33 @@ th,
 td {
   border: 1px solid var(--border);
   padding: 12px;
+}
+
+.table-container {
+  width: 100% !important;
+  overflow-x: hidden !important;
+}
+
+.table-container table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.table-container th,
+.table-container td {
+  padding: 4px 4px !important;
+  box-sizing: border-box !important;
+}
+
+.table-container input[type="number"]::-webkit-inner-spin-button,
+.table-container input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+
+.table-container input[type="number"] {
+  -moz-appearance: textfield !important;
 }
 
 th {
@@ -361,12 +428,7 @@ textarea:focus {
 
   /* Responsive table */
   .table-container {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-
-  table {
-    min-width: 600px !important;
+    overflow-x: hidden !important;
   }
 }
 

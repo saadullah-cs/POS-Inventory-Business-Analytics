@@ -466,91 +466,80 @@ export default function EnhancedCalculator({ isOpen, onClose }: EnhancedCalculat
         onClick={onClose}
       />
       
-      {/* Calculator - Mobile: popup, Desktop: split-screen right panel */}
+      {/* Calculator - Floating widget docked neatly at bottom-right of screen */}
       <div 
         ref={calculatorRef}
         className="
           fixed 
-          bottom-20 right-4 
-          w-[calc(100vw-2rem)] 
-          max-h-[calc(100vh-120px)]
-          
-          sm:bottom-24 sm:right-6 
-          sm:w-[400px] 
-          sm:max-h-[600px]
-          
-          lg:top-0 lg:right-0 lg:bottom-0
-          lg:w-[420px] lg:max-w-[35vw]
-          lg:h-screen lg:max-h-screen
-          lg:rounded-none
-          
+          bottom-3 right-3 
+          w-[calc(100vw-1.5rem)] 
+          sm:bottom-4 sm:right-4 
+          sm:w-[340px] 
+          max-h-[calc(100vh-1rem)]
+          flex flex-col
           z-[100] 
           bg-white dark:bg-gray-800 
-          rounded-2xl lg:rounded-l-2xl
+          rounded-xl 
           shadow-2xl 
           overflow-hidden 
           border border-gray-200 dark:border-gray-700
-          lg:border-l-2 lg:border-t-0 lg:border-r-0 lg:border-b-0
           animate-in 
-          slide-in-from-bottom-4 lg:slide-in-from-right-8
+          slide-in-from-bottom-2 
           fade-in-0 
-          duration-300
+          duration-200
         "
         style={{
           transformOrigin: 'bottom right',
         }}
       >
-        {/* Header - Modern gradient design */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-violet-50 dark:from-gray-900 dark:to-gray-800">
-          <div className="flex items-center gap-2">
-            <Calculator className="w-5 h-5 text-blue-600" />
-            <h3 className="font-semibold text-gray-800 dark:text-white">
+        {/* Header - Compact modern gradient */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-violet-50 dark:from-gray-900 dark:to-gray-800 shrink-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Calculator className="w-4 h-4 text-blue-600 shrink-0" />
+            <span className="font-semibold text-xs sm:text-sm text-gray-800 dark:text-white truncate">
               {currentLanguage === 'ur' ? 'ذہین کیلکولیٹر' : 'Smart Calculator'}
-            </h3>
-            <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
-              {currentLanguage === 'ur' ? 'آواز اور کی بورڈ تیار' : 'Voice & Keyboard Ready'}
             </span>
           </div>
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-0.5 shrink-0">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setCurrentLanguage(currentLanguage === 'en' ? 'ur' : 'en')}
-              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1"
+              className="h-7 px-1.5 text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1"
               title={`Switch to ${currentLanguage === 'en' ? 'Urdu' : 'English'}`}
             >
-              <Languages className="w-4 h-4" />
-              <span className="text-xs">{currentLanguage === 'en' ? 'اُردو' : 'EN'}</span>
+              <Languages className="w-3.5 h-3.5" />
+              <span className="text-[10px]">{currentLanguage === 'en' ? 'اُردو' : 'EN'}</span>
             </Button>
             {speechSupported && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={isListening ? stopVoiceInput : startVoiceInput}
-                className={`text-sm sm:text-base ${
+                className={`h-7 w-7 p-0 ${
                   isListening 
                     ? "text-red-600 hover:text-red-700 bg-red-50 dark:bg-red-900/20" 
                     : "text-green-600 hover:text-green-700 dark:text-green-400"
                 }`}
                 title={isListening ? (currentLanguage === 'ur' ? "آواز بند کریں" : "Stop Voice Input") : (currentLanguage === 'ur' ? "آواز شروع کریں" : "Start Voice Input")}
               >
-                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
               </Button>
             )}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setShowHistory(!showHistory)}
-              className="text-gray-600 hover:text-blue-600 dark:text-gray-400"
+              className="h-7 w-7 p-0 text-gray-600 hover:text-blue-600 dark:text-gray-400"
               title="History"
             >
-              <History className="w-4 h-4" />
+              <History className="w-3.5 h-3.5" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="text-gray-600 hover:text-red-600 dark:text-gray-400"
+              className="h-7 w-7 p-0 text-gray-600 hover:text-red-600 dark:text-gray-400"
               title="Close"
             >
               <X className="w-4 h-4" />
@@ -558,61 +547,65 @@ export default function EnhancedCalculator({ isOpen, onClose }: EnhancedCalculat
           </div>
         </div>
 
-        <div className="p-4">
+        <div className="p-2.5 sm:p-3 overflow-y-auto flex-1 overscroll-contain">
           {/* Voice Status */}
           {voiceStatus && (
-            <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <div className="flex items-center gap-2">
+            <div className="mb-2 p-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+              <div className="flex items-center gap-1.5">
                 {isListening ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                    <Volume2 className="w-4 h-4 text-red-600" />
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div>
+                    <Volume2 className="w-3.5 h-3.5 text-red-600" />
                   </div>
                 ) : (
-                  <VolumeX className="w-4 h-4 text-blue-600" />
+                  <VolumeX className="w-3.5 h-3.5 text-blue-600" />
                 )}
-                <span className="text-sm text-blue-800 dark:text-blue-200">{voiceStatus}</span>
+                <span className="text-xs text-blue-800 dark:text-blue-200">{voiceStatus}</span>
               </div>
             </div>
           )}
           
           {/* Display */}
-          <div className="mb-4">
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <div className="text-sm text-blue-600 dark:text-blue-400 mb-1 h-5 font-mono">{autoCalculateDisplay}</div>
-              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1 h-5">
-                {previousValue && operation && `${previousValue} ${operation}`}
+          <div className="mb-2 sm:mb-2.5">
+            <div className="bg-gray-50 dark:bg-gray-700/80 rounded-lg px-2.5 py-1.5 border border-gray-100 dark:border-gray-600">
+              <div className="flex items-center justify-between text-xs mb-0.5 h-4">
+                <span className="text-gray-400 dark:text-gray-400 truncate text-[11px]">
+                  {previousValue && operation ? `${previousValue} ${operation}` : ""}
+                </span>
+                <span className="text-blue-600 dark:text-blue-400 font-mono text-[11px] truncate">
+                  {autoCalculateDisplay}
+                </span>
               </div>
               <Input
                 value={display}
                 readOnly
-                className="text-right text-2xl font-mono border-0 bg-transparent p-0 focus:ring-0 text-gray-900 dark:text-white"
+                className="text-right text-xl sm:text-2xl font-mono font-semibold border-0 bg-transparent p-0 h-7 sm:h-8 focus:ring-0 text-gray-900 dark:text-white"
               />
             </div>
           </div>
 
           {showHistory ? (
             /* History Panel */
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium text-gray-700 dark:text-gray-300">Calculation History</h4>
-                <Button variant="ghost" size="sm" onClick={clearHistory} className="text-red-600 hover:text-red-700">
-                  <RotateCcw className="w-4 h-4" />
+                <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300">Calculation History</h4>
+                <Button variant="ghost" size="sm" onClick={clearHistory} className="h-6 px-1.5 text-xs text-red-600 hover:text-red-700">
+                  <RotateCcw className="w-3.5 h-3.5" />
                 </Button>
               </div>
-              <div className="max-h-64 overflow-y-auto space-y-2">
+              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
                 {history.length === 0 ? (
-                  <p className="text-gray-500 dark:text-gray-400 text-center py-4">No calculations yet</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-center py-3 text-xs">No calculations yet</p>
                 ) : (
                   history.map((calc) => (
                     <div
                       key={calc.id}
-                      className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                      className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                       onClick={() => setDisplay(calc.result)}
                     >
-                      <div className="text-sm text-gray-600 dark:text-gray-400">{calc.expression}</div>
-                      <div className="font-mono font-semibold text-blue-600 dark:text-blue-400">= {calc.result}</div>
-                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      <div className="text-xs text-gray-600 dark:text-gray-400">{calc.expression}</div>
+                      <div className="font-mono font-semibold text-xs text-blue-600 dark:text-blue-400">= {calc.result}</div>
+                      <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
                         {calc.timestamp.toLocaleTimeString()}
                       </div>
                     </div>
@@ -621,88 +614,88 @@ export default function EnhancedCalculator({ isOpen, onClose }: EnhancedCalculat
               </div>
             </div>
           ) : (
-            /* Calculator Buttons */
-            <div className="grid grid-cols-4 gap-2 sm:gap-3">
+            /* Calculator Buttons - Compact single-screen layout */
+            <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
               {/* Row 1 */}
               <Button
                 variant="outline"
                 onClick={clear}
-                className="h-10 sm:h-12 text-red-600 hover:text-red-700 bg-transparent text-sm sm:text-base"
+                className="h-8 sm:h-9 text-red-600 hover:text-red-700 bg-transparent text-xs sm:text-sm font-semibold p-0"
               >
                 AC
               </Button>
               <Button
                 variant="outline"
                 onClick={clearEntry}
-                className="h-10 sm:h-12 bg-transparent text-sm sm:text-base"
+                className="h-8 sm:h-9 bg-transparent text-xs sm:text-sm font-medium p-0"
               >
                 CE
               </Button>
               <Button
                 variant="outline"
                 onClick={backspace}
-                className="h-10 sm:h-12 bg-transparent text-sm sm:text-base"
+                className="h-8 sm:h-9 bg-transparent text-xs sm:text-sm p-0"
               >
                 ⌫
               </Button>
               <Button
                 variant="outline"
                 onClick={() => inputOperation("/")}
-                className="h-10 sm:h-12 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm sm:text-base"
+                className="h-8 sm:h-9 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm sm:text-base font-semibold p-0"
               >
                 ÷
               </Button>
 
               {/* Row 2 */}
-              <Button variant="outline" onClick={() => inputNumber("7")} className="h-10 sm:h-12 text-sm sm:text-base">
+              <Button variant="outline" onClick={() => inputNumber("7")} className="h-8 sm:h-9 text-xs sm:text-sm font-medium p-0">
                 7
               </Button>
-              <Button variant="outline" onClick={() => inputNumber("8")} className="h-10 sm:h-12 text-sm sm:text-base">
+              <Button variant="outline" onClick={() => inputNumber("8")} className="h-8 sm:h-9 text-xs sm:text-sm font-medium p-0">
                 8
               </Button>
-              <Button variant="outline" onClick={() => inputNumber("9")} className="h-10 sm:h-12 text-sm sm:text-base">
+              <Button variant="outline" onClick={() => inputNumber("9")} className="h-8 sm:h-9 text-xs sm:text-sm font-medium p-0">
                 9
               </Button>
               <Button
                 variant="outline"
                 onClick={() => inputOperation("*")}
-                className="h-10 sm:h-12 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm sm:text-base"
+                className="h-8 sm:h-9 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm sm:text-base font-semibold p-0"
               >
                 ×
               </Button>
 
               {/* Row 3 */}
-              <Button variant="outline" onClick={() => inputNumber("4")} className="h-10 sm:h-12 text-sm sm:text-base">
+              <Button variant="outline" onClick={() => inputNumber("4")} className="h-8 sm:h-9 text-xs sm:text-sm font-medium p-0">
                 4
               </Button>
-              <Button variant="outline" onClick={() => inputNumber("5")} className="h-10 sm:h-12 text-sm sm:text-base">
+              <Button variant="outline" onClick={() => inputNumber("5")} className="h-8 sm:h-9 text-xs sm:text-sm font-medium p-0">
                 5
               </Button>
-              <Button variant="outline" onClick={() => inputNumber("6")} className="h-10 sm:h-12 text-sm sm:text-base">
+              <Button variant="outline" onClick={() => inputNumber("6")} className="h-8 sm:h-9 text-xs sm:text-sm font-medium p-0">
                 6
               </Button>
               <Button
                 variant="outline"
                 onClick={() => inputOperation("-")}
-                className="h-10 sm:h-12 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm sm:text-base"
+                className="h-8 sm:h-9 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-sm sm:text-base font-semibold p-0"
               >
                 −
               </Button>
 
               {/* Row 4 */}
-              <Button variant="outline" onClick={() => inputNumber("1")} className="h-10 sm:h-12 text-sm sm:text-base">
+              <Button variant="outline" onClick={() => inputNumber("1")} className="h-8 sm:h-9 text-xs sm:text-sm font-medium p-0">
                 1
               </Button>
-              <Button variant="outline" onClick={() => inputNumber("2")} className="h-10 sm:h-12 text-sm sm:text-base">
+              <Button variant="outline" onClick={() => inputNumber("2")} className="h-8 sm:h-9 text-xs sm:text-sm font-medium p-0">
                 2
               </Button>
-              <Button variant="outline" onClick={() => inputNumber("3")} className="h-10 sm:h-12 text-sm sm:text-base">
+              <Button variant="outline" onClick={() => inputNumber("3")} className="h-8 sm:h-9 text-xs sm:text-sm font-medium p-0">
                 3
               </Button>
               <Button
                 variant="outline"
                 onClick={() => inputOperation("+")}
-                className="h-10 sm:h-12 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 row-span-2 text-sm sm:text-base"
+                className="h-auto bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 row-span-2 text-sm sm:text-base font-semibold p-0"
               >
                 +
               </Button>
@@ -711,14 +704,14 @@ export default function EnhancedCalculator({ isOpen, onClose }: EnhancedCalculat
               <Button
                 variant="outline"
                 onClick={() => inputNumber("0")}
-                className="h-10 sm:h-12 col-span-2 text-sm sm:text-base"
+                className="h-8 sm:h-9 col-span-2 text-xs sm:text-sm font-medium p-0"
               >
                 0
               </Button>
               <Button
                 variant="outline"
                 onClick={inputDecimal}
-                className="h-10 sm:h-12 bg-transparent text-sm sm:text-base"
+                className="h-8 sm:h-9 bg-transparent text-xs sm:text-sm font-medium p-0"
               >
                 .
               </Button>
@@ -726,7 +719,7 @@ export default function EnhancedCalculator({ isOpen, onClose }: EnhancedCalculat
               {/* Equals button */}
               <Button
                 onClick={performCalculation}
-                className="h-10 sm:h-12 bg-blue-600 text-white hover:bg-blue-700 text-sm sm:text-base"
+                className="h-8 sm:h-9 bg-blue-600 text-white hover:bg-blue-700 text-xs sm:text-sm font-bold p-0 shadow-sm"
               >
                 =
               </Button>
