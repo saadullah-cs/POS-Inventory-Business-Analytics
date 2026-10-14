@@ -14,7 +14,6 @@ import { type SavedInvoice } from "./invoice-manager"
 import InvoiceActions from "./invoice-actions"
 import MobileActionMenu from "./mobile-action-menu"
 import Link from "next/link"
-import CloudStorageManager from "./cloud-storage-manager"
 import OfflineStatus from './offline-status'
 import PWAInstallButton from './pwa-install-button'
 import { offlineStorage, createOfflineInvoice, isOfflineMode, type OfflineInvoice } from "@/lib/offline-storage"
@@ -85,20 +84,52 @@ export default function ProfessionalInvoice() {
   }, [])
 
   const handleThermalPrintRef = useRef<() => void>()
+  const handlePrintRef = useRef<() => void>()
+  const showCalculatorRef = useRef<boolean>(false)
+  const handleClearInvoiceRef = useRef<() => void>()
 
-  // Keyboard shortcut listener for F9 POS Thermal Print
+  // Keep calculator ref updated
+  showCalculatorRef.current = showCalculator
+
+  // Global POS Keyboard Shortcut Listener (Capture phase guarantees input-focused triggers)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F9") {
+      // F9: POS Thermal Receipt Print
+      if (e.key === "F9" || e.code === "F9") {
         e.preventDefault()
+        e.stopPropagation()
         if (handleThermalPrintRef.current) {
           handleThermalPrintRef.current()
         }
+        return
+      }
+
+      // F8: Standard A4 Print
+      if (e.key === "F8" || e.code === "F8") {
+        e.preventDefault()
+        e.stopPropagation()
+        if (handlePrintRef.current) {
+          handlePrintRef.current()
+        }
+        return
+      }
+
+      // Escape: Close Smart Calculator if open, otherwise clear invoice fields
+      if (e.key === "Escape" || e.code === "Escape") {
+        e.preventDefault()
+        e.stopPropagation()
+        if (showCalculatorRef.current) {
+          setShowCalculator(false)
+        } else if (handleClearInvoiceRef.current) {
+          handleClearInvoiceRef.current()
+        }
+        return
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
+    // useCapture = true ensures events are caught globally before input elements can consume them
+    window.addEventListener("keydown", handleKeyDown, true)
+    return () => window.removeEventListener("keydown", handleKeyDown, true)
   }, [])
 
   const [invoiceNumber, setInvoiceNumber] = useState("INV-2025-001")
@@ -425,6 +456,7 @@ export default function ProfessionalInvoice() {
       window.print()
     }
   }
+  handlePrintRef.current = handlePrint
 
   const persistCurrentInvoice = async () => {
     const now = new Date()
@@ -524,7 +556,7 @@ export default function ProfessionalInvoice() {
     setHasUnsavedChanges(false)
   }
 
-  const createNewInvoice = () => {
+  const handleClearInvoice = () => {
     setCurrentInvoiceId(Date.now().toString())
     setInvoiceNumber(`INV-2025-${String(Date.now()).slice(-3)}`)
     setInvoiceDate(new Date().toISOString().split("T")[0])
@@ -535,16 +567,21 @@ export default function ProfessionalInvoice() {
       { id: "3", description: "", quantity: 1, unitPrice: 0, taxRate: 0, discount: 0 },
       { id: "4", description: "", quantity: 1, unitPrice: 0, taxRate: 0, discount: 0 },
       { id: "5", description: "", quantity: 1, unitPrice: 0, taxRate: 0, discount: 0 },
+      { id: "6", description: "", quantity: 1, unitPrice: 0, taxRate: 0, discount: 0 },
     ])
     setClientInfo({
-      name: "Client Name",
-      address: "Client Address",
-      city: "City, State 12345",
-      phone: "+1 (555) 987-6543",
-      email: "client@email.com",
+      name: "",
+      address: "",
+      city: "",
+      phone: "",
+      email: "",
     })
+    setActiveDropdownRowId(null)
     setHasUnsavedChanges(false)
   }
+
+  const createNewInvoice = handleClearInvoice
+  handleClearInvoiceRef.current = handleClearInvoice
 
   const handleDuplicateInvoice = () => {
     const newId = Date.now().toString()
@@ -991,7 +1028,32 @@ export default function ProfessionalInvoice() {
             </div>
 
             <div className="control-buttons flex items-center gap-2">
-              <Button onClick={handleThermalPrint} size="sm" className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-2 mr-2"><Printer className="w-4 h-4" /> POS Thermal (F9)</Button>
+              <Button
+                onClick={handleThermalPrint}
+                size="sm"
+                title="POS Thermal Print (F9)"
+                className="bg-teal-600 hover:bg-teal-700 text-white flex items-center gap-2"
+              >
+                <Printer className="w-4 h-4" /> POS Thermal (F9)
+              </Button>
+              <Button
+                onClick={handlePrint}
+                size="sm"
+                variant="outline"
+                title="Standard A4 Print (F8)"
+                className="flex items-center gap-2 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <Printer className="w-4 h-4" /> A4 Print (F8)
+              </Button>
+              <Button
+                onClick={handleClearInvoice}
+                size="sm"
+                variant="ghost"
+                title="Clear Invoice / Reset Fields (Escape)"
+                className="text-muted-foreground hover:text-foreground flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" /> Clear (Esc)
+              </Button>
               <Button
                 variant="outline"
                 size="icon"
@@ -1052,26 +1114,30 @@ export default function ProfessionalInvoice() {
               <Button
                 onClick={handleThermalPrint}
                 size="sm"
+                title="POS Thermal Print (F9)"
                 className="bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center gap-1.5"
               >
                 <Printer className="w-4 h-4" />
-                POS
+                POS (F9)
               </Button>
               <Button
                 onClick={handlePrint}
                 size="sm"
+                title="Standard A4 Print (F8)"
                 className="flex items-center justify-center gap-1.5"
               >
                 <Printer className="w-4 h-4" />
-                Print
+                A4 (F8)
               </Button>
               <Button
+                onClick={handleClearInvoice}
                 variant="outline"
                 size="sm"
-                className="flex items-center justify-center gap-1.5 bg-transparent text-green-600 hover:text-green-700"
+                title="Clear Invoice Fields (Escape)"
+                className="flex items-center justify-center gap-1.5 bg-transparent text-amber-600 hover:text-amber-700"
               >
-                <FileText className="w-4 h-4" />
-                Word
+                <Trash2 className="w-4 h-4" />
+                Clear (Esc)
               </Button>
             </div>
             <Button
@@ -1113,7 +1179,7 @@ export default function ProfessionalInvoice() {
         <Button
           onClick={toggleCalculator}
           className="rounded-full w-14 h-14 bg-blue-600/60 hover:bg-blue-700/70 shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-white/20"
-          title={t('actions.openCalculator')}
+          title={`${t('actions.openCalculator')} (Esc to close)`}
         >
           <Calculator className="w-6 h-6 text-white/80" />
         </Button>

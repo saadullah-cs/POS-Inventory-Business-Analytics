@@ -65,7 +65,7 @@ export interface OfflineSyncQueue {
 class OfflineStorageManager {
   private db: IDBDatabase | null = null
   private readonly DB_NAME = 'BiocureHealthcareDB'
-  private readonly DB_VERSION = 1
+  private readonly DB_VERSION = 2
 
   constructor() {
     // Don't initialize DB in constructor to avoid SSR issues
@@ -112,6 +112,14 @@ class OfflineStorageManager {
           customerStore.createIndex('name', 'name', { unique: false })
           customerStore.createIndex('email', 'email', { unique: false })
           customerStore.createIndex('syncStatus', 'syncStatus', { unique: false })
+        }
+
+        // Create products store
+        if (!db.objectStoreNames.contains('products')) {
+          const productStore = db.createObjectStore('products', { keyPath: 'id' })
+          productStore.createIndex('name', 'name', { unique: false })
+          productStore.createIndex('sku', 'sku', { unique: false })
+          productStore.createIndex('category', 'category', { unique: false })
         }
 
         // Create app settings store
@@ -379,6 +387,60 @@ class OfflineStorageManager {
     console.log('All offline data cleared')
   }
 
+  async clearStore(storeName: string): Promise<void> {
+    const db = await this.ensureDB()
+    if (!db.objectStoreNames.contains(storeName)) return
+    const transaction = db.transaction([storeName], 'readwrite')
+    return new Promise((resolve, reject) => {
+      const request = transaction.objectStore(storeName).clear()
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error)
+    })
+  }
+
+  async bulkAdd(storeName: string, items: any[]): Promise<number> {
+    if (!items || !Array.isArray(items) || items.length === 0) return 0
+    const db = await this.ensureDB()
+    if (!db.objectStoreNames.contains(storeName)) {
+      console.warn(`Store "${storeName}" does not exist in IndexedDB`)
+      return 0
+    }
+
+    const transaction = db.transaction([storeName], 'readwrite')
+    const store = transaction.objectStore(storeName)
+
+    return new Promise((resolve, reject) => {
+      let count = 0
+      transaction.oncomplete = () => resolve(count)
+      transaction.onerror = () => reject(transaction.error)
+      transaction.onabort = () => reject(transaction.error || new Error(`Transaction aborted for ${storeName}`))
+
+      for (const item of items) {
+        if (item && typeof item === 'object') {
+          const record = { ...item }
+          if (record.createdAt && typeof record.createdAt === 'string') {
+            record.createdAt = new Date(record.createdAt)
+          }
+          if (record.updatedAt && typeof record.updatedAt === 'string') {
+            record.updatedAt = new Date(record.updatedAt)
+          }
+          if (record.lastModified && typeof record.lastModified === 'string') {
+            record.lastModified = new Date(record.lastModified)
+          }
+          store.put(record)
+          count++
+        }
+      }
+    })
+  }
+
+  getTable(tableName: string) {
+    return {
+      clear: () => this.clearStore(tableName),
+      bulkAdd: (items: any[]) => this.bulkAdd(tableName, items),
+    }
+  }
+
   // ===== SYNC OPERATIONS =====
 
   async syncWithCloud(): Promise<{ success: boolean; message: string; syncedItems: number }> {
@@ -432,6 +494,34 @@ class OfflineStorageManager {
       }
     }
   }
+
+  async getAllStoresData(): Promise<Record<string, any[]>> {
+    const db = await this.ensureDB()
+    const storeNames = Array.from(db.objectStoreNames)
+    const results: Record<string, any[]> = {}
+
+    if (storeNames.length === 0) {
+      return results
+    }
+
+    const transaction = db.transaction(storeNames, 'readonly')
+
+    await Promise.all(
+      storeNames.map((storeName) => {
+        return new Promise<void>((resolve, reject) => {
+          const store = transaction.objectStore(storeName)
+          const request = store.getAll()
+          request.onsuccess = () => {
+            results[storeName] = request.result || []
+            resolve()
+          }
+          request.onerror = () => reject(request.error)
+        })
+      })
+    )
+
+    return results
+  }
 }
 
 // Export singleton instance
@@ -472,3 +562,268 @@ export const createOfflineInvoice = (data: Partial<OfflineInvoice>): OfflineInvo
     lastModified: now
   }
 }
+
+/**
+ * Asynchronously query and retrieve all records from every store in local IndexedDB
+ * and bundle them into a comprehensive master JSON object for backup/export.
+ */
+export async function exportFullDatabaseState(): Promise<{
+  invoices: any[]
+  customers: any[]
+  clients: any[]
+  products: any[]
+  settings: any
+  syncQueue: any[]
+  metadata: {
+    appName: string
+    exportedAt: string
+    dbName: string
+    dbVersion: number
+    stores: string[]
+    counts: {
+      invoices: number
+      customers: number
+      products: number
+      settings: number
+    }
+  }
+  [key: string]: any
+}> {
+  if (typeof window === 'undefined') {
+    return {
+      invoices: [],
+      customers: [],
+      clients: [],
+      products: [],
+      settings: {},
+      syncQueue: [],
+      metadata: {
+        appName: 'Biocure Health Care',
+        exportedAt: new Date().toISOString(),
+        dbName: 'BiocureHealthcareDB',
+        dbVersion: 1,
+        stores: [],
+        counts: { invoices: 0, customers: 0, products: 0, settings: 0 },
+      },
+    }
+  }
+
+  // 1. Fetch all records from every IndexedDB store
+  let idbData: Record<string, any[]> = {}
+  try {
+    idbData = await offlineStorage.getAllStoresData()
+  } catch (err) {
+    console.warn('Could not read IndexedDB stores, falling back to local stores:', err)
+  }
+
+  // 2. Fetch persistent storage data (saved invoices, products, settings)
+  let localInvoices: any[] = []
+  let localProducts: any[] = []
+  let localSettings: Record<string, any> = {}
+
+  try {
+    const rawInvoices = localStorage.getItem('saved-invoices')
+    if (rawInvoices) {
+      localInvoices = JSON.parse(rawInvoices)
+    }
+  } catch (e) {
+    console.warn('Could not parse localStorage saved-invoices', e)
+  }
+
+  try {
+    const rawProducts = localStorage.getItem('wholesale_products_v1')
+    if (rawProducts) {
+      localProducts = JSON.parse(rawProducts)
+    }
+  } catch (e) {
+    console.warn('Could not parse localStorage wholesale_products_v1', e)
+  }
+
+  try {
+    localSettings = {
+      companyInfo: localStorage.getItem('company-info') ? JSON.parse(localStorage.getItem('company-info')!) : null,
+      tableColumns: localStorage.getItem('table-columns') ? JSON.parse(localStorage.getItem('table-columns')!) : null,
+      preferences: localStorage.getItem('user-preferences') ? JSON.parse(localStorage.getItem('user-preferences')!) : null,
+      appSettings: localStorage.getItem('app-settings') ? JSON.parse(localStorage.getItem('app-settings')!) : null,
+      expenses: localStorage.getItem('expenses') ? JSON.parse(localStorage.getItem('expenses')!) : null,
+    }
+  } catch (e) {
+    console.warn('Could not parse localStorage settings', e)
+  }
+
+  // 3. Deduplicate and merge invoices from both IndexedDB and localStorage
+  const idbInvoices = idbData['invoices'] || []
+  const invoiceMap = new Map<string, any>()
+
+  localInvoices.forEach((inv) => {
+    const key = inv.id || inv.invoiceNumber
+    if (key) invoiceMap.set(key, inv)
+  })
+  idbInvoices.forEach((inv) => {
+    const key = inv.id || inv.invoiceNumber
+    if (key) invoiceMap.set(key, inv)
+  })
+
+  const mergedInvoices = invoiceMap.size > 0 ? Array.from(invoiceMap.values()) : idbInvoices
+  const customers = idbData['customers'] || []
+  const syncQueue = idbData['syncQueue'] || []
+  const idbSettings = idbData['settings'] || []
+
+  const combinedSettings = {
+    ...localSettings,
+    indexedDbSettings: idbSettings,
+  }
+
+  return {
+    invoices: mergedInvoices,
+    customers,
+    clients: customers, // compatibility alias
+    products: localProducts,
+    settings: combinedSettings,
+    syncQueue,
+    ...idbData,
+    metadata: {
+      appName: 'Biocure Health Care POS & Inventory',
+      exportedAt: new Date().toISOString(),
+      dbName: 'BiocureHealthcareDB',
+      dbVersion: 2,
+      stores: Object.keys(idbData),
+      counts: {
+        invoices: mergedInvoices.length,
+        customers: customers.length,
+        products: localProducts.length,
+        settings: Object.keys(combinedSettings).length,
+      },
+    },
+  }
+}
+
+/**
+ * Asynchronously restore and import database state from a master backup JSON payload.
+ * Securely clears existing stores and batch-inserts the restored records.
+ *
+ * @param jsonData - Backup JSON string or pre-parsed object
+ * @returns Promise<boolean> - Returns true on successful restoration
+ * @throws Error - If JSON is malformed or database restoration fails
+ */
+export async function importFullDatabaseState(jsonData: any): Promise<boolean> {
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    // 1. Validate and parse JSON payload
+    let payload = jsonData
+    if (typeof jsonData === 'string') {
+      try {
+        payload = JSON.parse(jsonData)
+      } catch (parseError: any) {
+        throw new Error(`Malformed JSON: Unable to parse backup payload (${parseError?.message || 'SyntaxError'})`)
+      }
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('Malformed JSON: Backup payload must be a valid JSON object.')
+    }
+
+    // 2. Extract and validate required data arrays
+    const invoices: any[] = Array.isArray(payload.invoices)
+      ? payload.invoices
+      : Array.isArray(payload.Invoices)
+      ? payload.Invoices
+      : []
+
+    const customers: any[] = Array.isArray(payload.customers)
+      ? payload.customers
+      : Array.isArray(payload.clients)
+      ? payload.clients
+      : Array.isArray(payload.Customers)
+      ? payload.Customers
+      : Array.isArray(payload.Clients)
+      ? payload.Clients
+      : []
+
+    const products: any[] = Array.isArray(payload.products)
+      ? payload.products
+      : Array.isArray(payload.Products)
+      ? payload.Products
+      : []
+
+    const settings = payload.settings || payload.Settings || null
+
+    // Require at least one valid data section or valid metadata
+    const hasValidData =
+      invoices.length > 0 ||
+      customers.length > 0 ||
+      products.length > 0 ||
+      Boolean(settings) ||
+      Boolean(payload.metadata)
+
+    if (!hasValidData) {
+      throw new Error('Malformed JSON: Backup payload does not contain valid database stores (invoices, customers, or products).')
+    }
+
+    // 3. Securely clear existing data stores (IndexedDB/Dexie tables) to prevent duplicate primary key crashes
+    const invoicesTable = offlineStorage.getTable('invoices')
+    const customersTable = offlineStorage.getTable('customers')
+    const productsTable = offlineStorage.getTable('products')
+    const settingsTable = offlineStorage.getTable('settings')
+
+    await invoicesTable.clear()
+    await customersTable.clear()
+    await productsTable.clear()
+    if (settings) {
+      await settingsTable.clear()
+    }
+
+    // 4. Batch insert into respective tables using .bulkAdd()
+    if (invoices.length > 0) {
+      await invoicesTable.bulkAdd(invoices)
+    }
+
+    if (customers.length > 0) {
+      await customersTable.bulkAdd(customers)
+    }
+
+    if (products.length > 0) {
+      await productsTable.bulkAdd(products)
+    }
+
+    // 5. Sync restored records to persistent browser storage (localStorage)
+    try {
+      if (invoices.length > 0) {
+        localStorage.setItem('saved-invoices', JSON.stringify(invoices))
+      }
+      if (products.length > 0) {
+        localStorage.setItem('biocure_wholesale_products', JSON.stringify(products))
+        localStorage.setItem('wholesale_products_v1', JSON.stringify(products))
+      }
+      if (settings && typeof settings === 'object') {
+        if (settings.companyInfo) localStorage.setItem('company-info', JSON.stringify(settings.companyInfo))
+        if (settings.tableColumns) localStorage.setItem('table-columns', JSON.stringify(settings.tableColumns))
+        if (settings.preferences) localStorage.setItem('user-preferences', JSON.stringify(settings.preferences))
+        if (settings.appSettings) localStorage.setItem('app-settings', JSON.stringify(settings.appSettings))
+        if (settings.expenses) localStorage.setItem('expenses', JSON.stringify(settings.expenses))
+      }
+
+      // Notify other components/tabs that storage has been restored
+      window.dispatchEvent(new Event('storage'))
+    } catch (storageError) {
+      console.warn('Could not sync restored state to localStorage:', storageError)
+    }
+
+    console.log('[Database Restoration] Full database state imported successfully:', {
+      invoicesRestored: invoices.length,
+      customersRestored: customers.length,
+      productsRestored: products.length,
+      hasSettings: Boolean(settings),
+    })
+
+    return true
+  } catch (error: any) {
+    console.error('[Database Restoration] Error importing database state:', error)
+    throw error
+  }
+}
+
+

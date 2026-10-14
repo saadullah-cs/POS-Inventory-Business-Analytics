@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import AppHeader from "./app-header"
 import AppSidebar from "./app-sidebar"
 import Footer from "./footer"
+import { exportFullDatabaseState } from "@/lib/offline-storage"
 
 interface AppShellProps {
   children: React.ReactNode
@@ -34,6 +35,50 @@ export default function AppShell({ children }: AppShellProps) {
       document.body.setAttribute('data-sidebar-collapsed', sidebarCollapsed ? 'true' : 'false')
     }
   }, [sidebarOpen, sidebarCollapsed, mounted])
+
+  // Automated Silent Background Cloud Sync Engine (triggers every 15 minutes / 900000 ms)
+  useEffect(() => {
+    const SYNC_INTERVAL_MS = 15 * 60 * 1000 // 900000 ms (15 minutes)
+
+    const performSilentBackup = async () => {
+      // Network guard: check connection before querying IndexedDB or fetching API
+      if (typeof window !== "undefined" && navigator.onLine) {
+        try {
+          console.log("[Autonomous Cloud Sync] Initiating silent scheduled database backup...")
+          const masterState = await exportFullDatabaseState()
+
+          const response = await fetch("/api/backup", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(masterState),
+          })
+
+          const result = await response.json()
+
+          if (!response.ok || !result.success) {
+            console.warn("[Autonomous Cloud Sync] Background backup failed silently:", result?.error || response.statusText)
+            return
+          }
+
+          console.log("[Autonomous Cloud Sync] Background backup completed successfully:", {
+            fileName: result.fileName,
+            fileId: result.fileId,
+            timestamp: new Date().toISOString(),
+          })
+        } catch (error) {
+          console.error("[Autonomous Cloud Sync] Error during silent background sync:", error)
+        }
+      } else {
+        console.log("[Autonomous Cloud Sync] Device offline or window undefined. Skipping scheduled background backup.")
+      }
+    }
+
+    const intervalId = setInterval(performSilentBackup, SYNC_INTERVAL_MS)
+
+    return () => clearInterval(intervalId)
+  }, [])
 
   // Handle sidebar collapse/expand
   const handleCollapse = () => {

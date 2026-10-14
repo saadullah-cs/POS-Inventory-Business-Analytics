@@ -34,11 +34,18 @@ import {
   CheckCircle,
   XCircle,
   Sun,
-  Moon
+  Moon,
+  CloudUpload,
+  Loader2,
+  HardDrive,
+  CheckCircle2
 } from "lucide-react"
 import Link from "next/link"
 import AuthGuard from "@/components/auth-guard"
 import { useTheme } from "@/components/theme-provider"
+import { exportFullDatabaseState } from "@/lib/offline-storage"
+import { useToast } from "@/hooks/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 
 interface AppSettings {
   // Company Information
@@ -140,11 +147,14 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme()
   const [settings, setSettings] = useState<AppSettings>(defaultSettings)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const { toast } = useToast()
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [storageUsage, setStorageUsage] = useState({ used: 0, total: 0 })
   const [showPasswords, setShowPasswords] = useState(false)
   const [lastBackup, setLastBackup] = useState<Date | null>(null)
+  const [isBackingUp, setIsBackingUp] = useState(false)
+  const [lastCloudBackup, setLastCloudBackup] = useState<string | null>(null)
 
   // Monitor online status
   useEffect(() => {
@@ -192,6 +202,11 @@ export default function SettingsPage() {
     const lastBackupDate = localStorage.getItem("last-backup-date")
     if (lastBackupDate) {
       setLastBackup(new Date(lastBackupDate))
+    }
+
+    const cloudBackupDate = localStorage.getItem("last-google-drive-backup")
+    if (cloudBackupDate) {
+      setLastCloudBackup(new Date(cloudBackupDate).toLocaleString())
     }
 
     // Calculate storage usage
@@ -335,6 +350,51 @@ export default function SettingsPage() {
     }
   }
 
+  const handleGoogleDriveBackup = async () => {
+    if (isBackingUp) return
+    setIsBackingUp(true)
+
+    try {
+      // Retrieve master state from all IndexedDB stores & persistent cache
+      const masterState = await exportFullDatabaseState()
+
+      // POST to /api/backup Google Drive service account endpoint
+      const response = await fetch("/api/backup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(masterState),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to upload database backup to Google Drive")
+      }
+
+      const now = new Date()
+      setLastBackup(now)
+      setLastCloudBackup(now.toLocaleString())
+      localStorage.setItem("last-backup-date", now.toISOString())
+      localStorage.setItem("last-google-drive-backup", now.toISOString())
+
+      toast({
+        title: "Backup Uploaded Successfully",
+        description: `Full database state saved to Google Drive (${result.fileName || "biocure-backup.json"}). File ID: ${result.fileId}`,
+      })
+    } catch (error: any) {
+      console.error("Google Drive Backup Error:", error)
+      toast({
+        title: "Backup Failed",
+        description: error.message || "Failed to upload database backup to Google Drive.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsBackingUp(false)
+    }
+  }
+
   const updateSetting = (path: string, value: any) => {
     const keys = path.split('.')
     const newSettings = JSON.parse(JSON.stringify(settings))
@@ -439,6 +499,25 @@ export default function SettingsPage() {
                     <Save className="w-4 h-4 mr-2" />
                     Save Changes
                   </Button>
+
+                  <Button 
+                    onClick={handleGoogleDriveBackup} 
+                    variant="outline" 
+                    className="w-full bg-blue-50/70 hover:bg-blue-100/70 dark:bg-blue-950/30 dark:hover:bg-blue-900/50 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-medium transition-all"
+                    disabled={isBackingUp}
+                  >
+                    {isBackingUp ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin text-blue-600" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <CloudUpload className="w-4 h-4 mr-2 text-blue-600" />
+                        Backup to Google Drive
+                      </>
+                    )}
+                  </Button>
                   
                   <Button onClick={exportData} variant="outline" className="w-full">
                     <Download className="w-4 h-4 mr-2" />
@@ -475,8 +554,15 @@ export default function SettingsPage() {
                   
                   {lastBackup && (
                     <div className="text-xs text-muted-foreground">
-                      <p>Last backup:</p>
+                      <p>Last local backup:</p>
                       <p>{lastBackup.toLocaleDateString()}</p>
+                    </div>
+                  )}
+
+                  {lastCloudBackup && (
+                    <div className="text-xs text-muted-foreground">
+                      <p>Last Google Drive backup:</p>
+                      <p>{lastCloudBackup}</p>
                     </div>
                   )}
                   
@@ -782,6 +868,131 @@ export default function SettingsPage() {
                   </Card>
                 </TabsContent>
 
+                {/* Data & Storage Settings */}
+                <TabsContent value="storage">
+                  <div className="space-y-6">
+                    {/* Google Drive Cloud Backup Card */}
+                    <Card>
+                      <CardHeader>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <CardTitle className="flex items-center gap-2">
+                              <CloudUpload className="w-5 h-5 text-blue-600" />
+                              Google Drive Cloud Backup
+                            </CardTitle>
+                            <CardDescription>
+                              Upload your complete offline database (invoices, customers, products, settings) directly to Google Drive
+                            </CardDescription>
+                          </div>
+                          <Badge variant="outline" className="w-fit bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                            Service Account Ready
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="p-4 rounded-lg border bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-slate-900 dark:to-slate-800/80 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-1.5">
+                                <Database className="w-4 h-4 text-blue-600" />
+                                Master Database Snapshot
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Asynchronously queries all IndexedDB stores (`invoices`, `customers`, `settings`, `syncQueue`) and bundles them into a timestamped JSON backup.
+                              </p>
+                            </div>
+                            <Button
+                              onClick={handleGoogleDriveBackup}
+                              disabled={isBackingUp}
+                              className="bg-blue-600 hover:bg-blue-700 text-white font-medium shrink-0 shadow-sm"
+                            >
+                              {isBackingUp ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Uploading...
+                                </>
+                              ) : (
+                                <>
+                                  <CloudUpload className="w-4 h-4 mr-2" />
+                                  Backup to Google Drive
+                                </>
+                              )}
+                            </Button>
+                          </div>
+
+                          {lastCloudBackup && (
+                            <div className="pt-2 border-t text-xs text-muted-foreground flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                              Last Google Drive backup: <span className="font-medium text-foreground">{lastCloudBackup}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div className="p-3 border rounded-lg bg-card space-y-1">
+                            <span className="text-xs font-semibold text-muted-foreground">Destination Folder</span>
+                            <p className="text-xs font-mono text-foreground truncate">Google Drive Service Account Vault</p>
+                          </div>
+                          <div className="p-3 border rounded-lg bg-card space-y-1">
+                            <span className="text-xs font-semibold text-muted-foreground">Storage Engine</span>
+                            <p className="text-xs text-foreground">IndexedDB (`BiocureHealthcareDB`) + LocalStorage</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Local Storage & Manual Data Controls */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <HardDrive className="w-5 h-5 text-slate-700 dark:text-slate-300" />
+                          Local Storage & Data Management
+                        </CardTitle>
+                        <CardDescription>
+                          Manage local browser quota, download manual JSON backups, or restore previous data
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium">Browser Storage Usage</span>
+                            <span className="text-muted-foreground">{storageUsage.used.toFixed(2)} MB of {storageUsage.total} MB</span>
+                          </div>
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                            <div
+                              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                              style={{ width: `${Math.min((storageUsage.used / storageUsage.total) * 100, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                          <Button onClick={exportData} variant="outline" className="flex-1">
+                            <Download className="w-4 h-4 mr-2" />
+                            Download JSON File
+                          </Button>
+                          <div className="relative flex-1">
+                            <input
+                              type="file"
+                              accept=".json"
+                              onChange={importData}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                            <Button variant="outline" className="w-full">
+                              <Upload className="w-4 h-4 mr-2" />
+                              Restore from File
+                            </Button>
+                          </div>
+                          <Button onClick={clearAllData} variant="destructive" className="flex-1">
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            Clear Local Storage
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+
                 {/* Security Settings */}
                 <TabsContent value="security">
                   <Card>
@@ -904,6 +1115,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+      <Toaster />
     </AuthGuard>
   )
 }

@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/components/auth-provider"
 import PageVisitTracker from "@/components/page-visit-tracker"
 import { I18nProvider } from "@/components/i18n-provider"
+import { Toaster } from "@/components/ui/toaster"
 
 const inter = Inter({
   variable: "--font-inter",
@@ -62,6 +63,7 @@ export default function RootLayout({
             <I18nProvider>
               {children}
             </I18nProvider>
+            <Toaster />
           </AuthProvider>
         </ThemeProvider>
         <script dangerouslySetInnerHTML={{
